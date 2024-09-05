@@ -1,4 +1,6 @@
 ﻿using FC.Context;
+using FC.Interfaces;
+using FC.Loaders;
 using FC.Models;
 using Microsoft.Extensions.Configuration;
 using System.Configuration;
@@ -13,13 +15,12 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Path = System.IO.Path;
 
 
 namespace FC
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
+   
     public partial class MainWindow : Window
     {
         private FileSystemWatcher _fileSystemWatcher;
@@ -30,13 +31,13 @@ namespace FC
         {
             InitializeComponent();
 
-            // Configuration setup
+            
             var builder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory()) // Set the base path to the application directory
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true); // Add JSON configuration file
+                .SetBasePath(Directory.GetCurrentDirectory()) 
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true); 
             _configuration = builder.Build();
 
-            // Check if the settings are loaded correctly
+           
             var pollingInterval = _configuration["Monitoring:PollingInterval"];
             if (pollingInterval == null)
             {
@@ -44,10 +45,10 @@ namespace FC
             }
             else
             {
-                // Bind the Monitoring section to MonitoringSettings model
+                
                 _monitoringSettings = _configuration.GetSection("Monitoring").Get<MonitoringSettings>();
 
-                // Initialize the file system watcher and start monitoring
+                
                 InitializeFileSystemWatcher();
             }
         }
@@ -81,69 +82,65 @@ namespace FC
 
         private async void OnNewFileCreated(object sender, FileSystemEventArgs e)
         {
+            string fileExtension = Path.GetExtension(e.FullPath);
 
-            // Dosya tam yolunu alıyoruz
-            string filePath = e.FullPath;
-
-            // Konfiqurasiya dəyərini oxumaq
-            string pollingIntervalString = _configuration["Monitoring:PollingInterval"];
-
-            if (int.TryParse(pollingIntervalString, out int pollingInterval))
+            try
             {
-                // Wait for the specified interval before processing
-                await Task.Delay(pollingInterval);
+                IFileLoader fileLoader = FileLoaderFactory.GetLoader(fileExtension);
+                var fileModels = fileLoader.Load(e.FullPath);
 
-                // Faylın adını ListBox-a əlavə etmək
                 Dispatcher.Invoke(() =>
                 {
-                    FilesListBox.Items.Add(filePath);
+                    foreach (var fileModel in fileModels)
+                    {
+                        fileModel.FilePath = e.FullPath;
+
+
+                        if (FilesListBox.Items.OfType<FileModel>().All(f => f.FilePath != fileModel.FilePath.ToString()))
+                        {
+                            FilesListBox.Items.Add(fileModel);
+                        }
+                    }
                 });
 
-                try
+               
+                using (var context = new AppDbContext())
                 {
-                    using (var context = new AppDbContext())
-                    {
-                        var fileModel = new FileModel
-                        {
-                            FileName = e.Name,
-                            FilePath = filePath,  // Tam yolu veritabanına ekleyin
-                            CreatedDate = DateTime.Now
-                        };
-
-                        context.Files.Add(fileModel);
-                        await context.SaveChangesAsync(); // Asenkron SaveChanges
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // Hata işleme (Mesela bir log dosyasına yazmak veya kullanıcıya bildirim yapmak)
-                    MessageBox.Show($"Veritabanı hatası: {ex.Message}");
+                    context.Files.AddRange(fileModels);
+                    await context.SaveChangesAsync();
                 }
             }
-            else
+            catch (Exception ex)
             {
-                MessageBox.Show("PollingInterval konfiqurasiya dəyəri düzgün deyil.");
+                MessageBox.Show($"Error loading file: {ex.Message}");
             }
         }
 
-        // Tıklama olayı
+
         private void FilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (FilesListBox.SelectedItem != null)
+            if (FilesListBox.SelectedItem is FileModel selectedFileModel)
             {
-                string selectedFilePath = FilesListBox.SelectedItem.ToString();
+                string filePath = selectedFileModel.FilePath;
 
-                // Seçilen dosyayı aç
-                try
+                if (File.Exists(filePath))
                 {
-                    Process.Start(new ProcessStartInfo(selectedFilePath) { UseShellExecute = true });
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo(filePath) { UseShellExecute = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error opening file: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
+                else
                 {
-                    MessageBox.Show($"Dosya açılamadı: {ex.Message}");
+                    MessageBox.Show("File does not exist.");
                 }
             }
         }
+
 
 
     }
