@@ -11,6 +11,7 @@ namespace FC.Models
         public int Id { get; set; }
         public string FileName { get; set; }
         public DateTime CreatedDate { get; set; }
+        public string FilePath { get; set; }
     }
 
 }

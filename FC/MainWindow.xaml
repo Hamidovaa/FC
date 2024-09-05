@@ -7,7 +7,6 @@
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-       
-        <ListBox Name="FilesListBox" Width="200" Height="200" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="10" />
+        <ListBox Name="FilesListBox" HorizontalAlignment="Left" Height="280" VerticalAlignment="Top" Width="500" Margin="10,10,0,0" SelectionChanged="FilesListBox_SelectionChanged"/>
     </Grid>
 </Window>

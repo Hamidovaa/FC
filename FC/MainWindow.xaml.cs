@@ -2,6 +2,7 @@
 using FC.Models;
 using Microsoft.Extensions.Configuration;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -80,8 +81,13 @@ namespace FC
 
         private async void OnNewFileCreated(object sender, FileSystemEventArgs e)
         {
+
+            // Dosya tam yolunu alıyoruz
+            string filePath = e.FullPath;
+
             // Konfiqurasiya dəyərini oxumaq
             string pollingIntervalString = _configuration["Monitoring:PollingInterval"];
+
             if (int.TryParse(pollingIntervalString, out int pollingInterval))
             {
                 // Wait for the specified interval before processing
@@ -90,7 +96,7 @@ namespace FC
                 // Faylın adını ListBox-a əlavə etmək
                 Dispatcher.Invoke(() =>
                 {
-                    FilesListBox.Items.Add(e.Name);
+                    FilesListBox.Items.Add(filePath);
                 });
 
                 try
@@ -100,6 +106,7 @@ namespace FC
                         var fileModel = new FileModel
                         {
                             FileName = e.Name,
+                            FilePath = filePath,  // Tam yolu veritabanına ekleyin
                             CreatedDate = DateTime.Now
                         };
 
@@ -116,6 +123,25 @@ namespace FC
             else
             {
                 MessageBox.Show("PollingInterval konfiqurasiya dəyəri düzgün deyil.");
+            }
+        }
+
+        // Tıklama olayı
+        private void FilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (FilesListBox.SelectedItem != null)
+            {
+                string selectedFilePath = FilesListBox.SelectedItem.ToString();
+
+                // Seçilen dosyayı aç
+                try
+                {
+                    Process.Start(new ProcessStartInfo(selectedFilePath) { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Dosya açılamadı: {ex.Message}");
+                }
             }
         }
 
